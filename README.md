@@ -1,28 +1,38 @@
-# Build Multi‑Agent Systems with n8n: Orchestrating Reliable AI Workflows
-This is the repository for the LinkedIn Learning course `Build Multi‑Agent Systems with n8n: Orchestrating Reliable AI Workflows`. The full course is available from [LinkedIn Learning][lil-course-url].
+# AI-Powered Business Analyst Automation Framework
+### Building Multi-Agent Systems with n8n for the IPOC / DXBSA Team
 
-![lil-thumbnail-url]
+This repository serves as a centralized workspace for developing, managing, and executing AI-driven Business Analyst workflows using n8n Cloud. It aims to standardize BA activities, automate document processing, and accelerate the generation of project deliverables through specialized AI agents.
 
-## Course Description
+## Repository Description
 
-<p>Multi-agent AI systems are becoming a critical capability as organizations move from experimenting with LLM workflows to running them in production. When a task is too complex for one agent, multiple specialized agents working together can get the job done.</p><p>In this course, instructor Tobias Zwingmann teaches you how to build multi-agent systems in n8n. Starting from a real project on day one, learn to design an orchestrator agent that delegates to specialized sub-agents, wire up shared memory and tools, and implement sequential and parallel coordination patterns. Explore the essential theory along the way: why multi-agent architectures exist, when to use them, and how to avoid pitfalls like context loss and runaway loops. Then, add production-grade features such as human-in-the-loop approval and fallback handling. Through screencap demos, node-by-node builds, and text-based challenges, you’ll build a complete deep research system on the n8n canvas.</p>
+As organizations increasingly adopt Generative AI, there is an opportunity to transform traditional Business Analyst activities through intelligent, automated workflows.
 
-- Design and build a multi-agent research system using search, critique, and orchestrator agents.
-- Run sequential and autonomous agent loops, applying split/merge, conditional routing, and safe stopping criteria.
-- Configure memory (buffer and vector store) and use it to generate a complete research report.
-- Deploy and monitor the workflow using n8n’s execution history, activation, and oversight nodes.
+This initiative focuses on building a multi-agent AI framework where an orchestrator agent coordinates specialized agents to perform BA activities such as requirements analysis, BRD/FSD generation, document extraction, data mapping, business rule identification, and data validation.
 
-## Instructor
+Business Analysts can upload source documents into predefined GitHub input folders. Automated n8n workflows will process these documents, invoke specialized AI agents, apply standardized instructions and templates, and publish the generated deliverables into designated output folders within the repository.
 
-Tobias Zwingmann - AI Expert, Author, Keynote Speaker
+The framework will leverage modular agent architecture, reusable prompts, API integrations, human-in-the-loop approvals, and workflow monitoring to support scalable and reliable automation.
 
-Tobias is a managing partner at RAPYD.AI, a vendor-neutral, independent boutique AI consulting firm specializing in AI prototyping, development, strategy, and training. As a former senior data scientist, he's seen the power of AI to revolutionize businesses—as well as the pitfalls of a tech-first approach. Today, he works with clients around the world to help them thrive in an AI-driven world, and future-proof their business—while focusing on empowering people instead of replacing them.
+## Key Capabilities
 
-Check out my other courses on [LinkedIn Learning](https://www.linkedin.com/learning/instructors/tobias-zwingmann?u=104).
+- **Document Intelligence:** Extract and analyze information from BRDs, FSDs, requirements documents, and technical specifications.
+- **Requirements Analysis:** Identify business requirements, functional requirements, assumptions, dependencies, gaps, and ambiguities.
+- **Automated FSD Generation:** Transform business requirements into structured Functional Specification Documents using standardized templates.
+- **Data Analysis & Validation:** Automate source-to-target mapping, business rule extraction, data quality checks, and validation reporting.
+- **Multi-Agent Orchestration:** Coordinate specialized agents for document analysis, requirements validation, content generation, and quality review.
+- **Human-in-the-Loop:** Introduce review and approval checkpoints before publishing final deliverables.
+- **GitHub Integration:** Maintain centralized input/output folders, reusable agent instructions, templates, and version-controlled deliverables.
+- **Workflow Monitoring:** Track n8n executions, processing status, errors, and generated artifacts.
 
+## Technology Stack
 
-[0]: # (Replace these placeholder URLs with actual course URLs)
+- GitHub – Repository and version control
+- n8n Cloud – Workflow orchestration and automation
+- LLM APIs – AI reasoning and content generation
+- OCR / Document Extraction APIs – Document processing
+- MCP / REST APIs – Tool and service integrations
 
-[lil-course-url]: https://www.linkedin.com/learning/build-multi-agent-systems-with-n8n-orchestrating-reliable-ai-workflows
-[lil-thumbnail-url]: https://media.licdn.com/dms/image/v2/D560DAQGIknUvimYB6w/learning-public-crop_675_1200/B56Z9ycPGiGoAY-/0/1784331432614?e=2147483647&v=beta&t=a9ujOCa2v-iqJjNp18P8hEYHqbx6tDCMEPRnwzFkgog
+## Expected Outcome
+
+A reusable, scalable AI-powered BA workspace that reduces manual documentation effort, improves consistency and quality of deliverables, and enables the IPOC / DXBSA team to adopt agent-driven business analysis workflows.
 
