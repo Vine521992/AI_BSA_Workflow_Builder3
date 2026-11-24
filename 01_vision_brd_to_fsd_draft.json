@@ -1,0 +1,840 @@
+{
+  "name": "01 - Vision BRD to FSD (Draft + BA Approval)",
+  "nodes": [
+    {
+      "parameters": {
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Vine521992"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "AI_BSA_Workflow_Builder3"
+        },
+        "events": [
+          "push"
+        ],
+        "authentication": "accessToken"
+      },
+      "id": "53056404-21e2-45d2-b774-2c4a1ab303f4",
+      "name": "GitHub Push Trigger",
+      "type": "n8n-nodes-base.githubTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "githubApi": {
+          "name": "CONFIGURE - GitHub Trigger"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const event = $input.first().json.body ?? $input.first().json;\nif (event.ref && event.ref !== 'refs/heads/main') return [];\nconst commits = event.commits ?? [];\nconst paths = [...new Set(commits.flatMap(c => [...(c.added ?? []), ...(c.modified ?? [])]))];\nconst known = ['HUMANA','CENTERWELL','EISAI'];\nreturn paths.filter(path => path.startsWith('input/IMAGE/') && /\\.(pdf|png|jpe?g)$/i.test(path)).map(path => { const name=path.split('/').pop(); const prefix=name.includes('__')?name.split('__')[0].toUpperCase():'UNIVERSAL'; const projectKey=known.includes(prefix)?prefix:'UNIVERSAL'; return {json:{owner:'Vine521992',repo:'AI_BSA_Workflow_Builder3',branch:'main',path,sourceFileName:name,projectKey,mimeType:/\\.pdf$/i.test(path)?'application/pdf':/\\.png$/i.test(path)?'image/png':'image/jpeg'}}; });"
+      },
+      "id": "7ff9f832-6683-4d70-9a4c-0e56f004fc36",
+      "name": "Filter BRD image and PDF files",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.github.com/repos/Vine521992/AI_BSA_Workflow_Builder3/contents/{{ encodeURIComponent($json.path).replace(/%2F/g, '/') }}?ref=main",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "source"
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.raw"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        }
+      },
+      "id": "44949f9b-203f-4242-928a-5ffc039f11c0",
+      "name": "Download source from GitHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "CONFIGURE - GitHub REST API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/files",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "source"
+            },
+            {
+              "name": "purpose",
+              "value": "user_data"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "11ab5879-a0aa-49f6-82f0-63bb29b5e3aa",
+      "name": "Upload source to OpenAI Files API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "CONFIGURE - OpenAI Bearer Header"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const upload = $input.first().json;\nconst source = $(\"Assemble project guidance and source binary\").item.json;\nconst fileId = upload.id;\nif (!fileId) throw new Error(\"OpenAI file upload did not return an id: \" + JSON.stringify(upload));\nconst isPdf = source.mimeType === \"application/pdf\";\nconst filePart = isPdf ? {type:\"input_file\", file_id:fileId} : {type:\"input_image\", file_id:fileId, detail:\"high\"};\nconst instructions = `You are a senior Business Systems Analyst. Analyse the supplied BRD source visually and semantically. Source file: ${source.path}.\nUNIVERSAL BRAND: ${source.universalBrand}\nVOICE: ${source.voice}\nBA STANDARDS: ${source.standards}\nPROJECT OVERRIDE: ${source.projectConfig}\nTEMPLATE: ${source.template}\nCreate a complete FSD as a single self-contained HTML document. Include Document Control; Purpose and Scope; Background and Objectives; BRD Summary; Functional Requirements; Business Rules; Data Requirements; Process Flows; Interfaces and Integrations; Validations and Exception Handling; Non-Functional Requirements; Dependencies and Assumptions; Acceptance Criteria; Requirements Traceability Matrix; Open Questions and BA Decisions. Capture text in diagrams, tables, screenshots and handwritten/scan content only when legible. Do not guess unreadable content. Preserve original requirement IDs. For generated IDs use FR-001, BR-001, DATA-001 and label them generated. Cite source page/section only when identifiable. Missing information must say 'Not specified in BRD \u2013 BA confirmation required'. Clearly label assumptions and recommendations. Do not invent facts. Return valid complete HTML only, no markdown fences. Use A4-friendly CSS and semantic tables. Use the brand palette from guidance; if no actual hex values are configured, use neutral navy/teal defaults and mark palette as pending brand confirmation.`;\nreturn [{json:{request:{model:\"gpt-4.1\",input:[{role:\"user\",content:[{type:\"input_text\",text:instructions},filePart]}],max_output_tokens:16000},sourcePath:source.path,sourceFileName:source.sourceFileName,mimeType:source.mimeType}}];"
+      },
+      "id": "6ee6f24a-8cf3-42b5-9f90-7573f16d54ad",
+      "name": "Build Responses API request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/responses",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}"
+      },
+      "id": "d8289d06-1015-4afe-aee7-89ab7acd64e1",
+      "name": "Analyse BRD with OpenAI Vision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "CONFIGURE - OpenAI Bearer Header"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const r=$input.first().json;\nlet html=\"\";\nfor (const o of (r.output ?? [])) for (const c of (o.content ?? [])) if (c.type === \"output_text\") html += c.text;\nif (!html) throw new Error(\"No output_text returned by Responses API. Inspect response: \" + JSON.stringify(r).slice(0,3000));\nhtml=html.replace(/^```html\\s*/i,\"\").replace(/```\\s*$/i,\"\");\nconst src=$(\"Build Responses API request\").item.json;\nreturn [{json:{html,sourcePath:src.sourcePath,sourceFileName:src.sourceFileName}}];"
+      },
+      "id": "4b28604d-b34c-407e-bcda-aff80c3f5f0b",
+      "name": "Extract generated FSD HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pdf.co/v1/pdf/convert/from/html",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({html:$json.html,name:\"FSD_DRAFT.pdf\",paperSize:\"A4\",orientation:\"Portrait\",printBackground:true,async:false}) }}"
+      },
+      "id": "09bbf5ca-791d-4c88-b1c8-ba1b28ce0782",
+      "name": "Convert FSD HTML to draft PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "CONFIGURE - PDF.co API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "cdd6ff2b-824a-41a5-b43b-5170448b0b55",
+      "name": "Download draft PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const pdf=await this.helpers.getBinaryDataBuffer(0,'data');\nconst src=$(\"Extract generated FSD HTML\").item.json;\nconst base=src.sourceFileName.replace(/\\.(pdf|png|jpe?g)$/i,\"\").replace(/[^A-Za-z0-9_-]+/g,\"_\");\nconst stamp=new Date().toISOString().replace(/[-:]/g,\"\").replace(/\\.\\d{3}Z$/, \"Z\");\nconst fileName=`${base}_FSD_DRAFT_${stamp}.pdf`;\nconst outputPath=`output/fsd/draft/${fileName}`;\nconst manifestPath=`output/fsd/draft/${base}_FSD_DRAFT_${stamp}_REVIEW.md`;\nconst manifest=`# FSD draft review\\n\\n- Source: ${src.sourcePath}\\n- Draft PDF: ${outputPath}\\n- Status: DRAFT \u2014 BA review required\\n\\nReview the PDF for completeness, traceability, accuracy, assumptions and open questions. Do not treat this as approved.\\n\\nTo approve, create a text file in \\`input/APPROVAL/\\` named \\`${base}_FSD_DRAFT_${stamp}.approve\\`. Its content must be the exact draft path: \\`${outputPath}\\`. Commit the marker to \\`main\\`. The separate approval workflow will copy it to \\`output/fsd/approved/\\`.`;\nreturn {json:{outputPath,fileName,sourcePath:src.sourcePath,pdfBase64:pdf.toString('base64'),manifestPath,manifestBase64:Buffer.from(manifest,'utf8').toString('base64')}};"
+      },
+      "id": "dfc891db-fb36-49ba-a3b6-b562a2b556f6",
+      "name": "Prepare draft PDF and review manifest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.github.com/repos/Vine521992/AI_BSA_Workflow_Builder3/contents/{{ $json.outputPath }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({message:\"Generate FSD draft from BRD\",content:$json.pdfBase64,branch:\"main\"}) }}"
+      },
+      "id": "f9e17206-b17c-4a64-a74a-c5d499375ad6",
+      "name": "Save draft PDF to GitHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "CONFIGURE - GitHub REST API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.github.com/repos/Vine521992/AI_BSA_Workflow_Builder3/contents/{{ $(\"Prepare draft PDF and review manifest\").item.json.manifestPath }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({message:\"Add FSD draft review instructions\",content:$(\"Prepare draft PDF and review manifest\").item.json.manifestBase64,branch:\"main\"}) }}"
+      },
+      "id": "35c0c3fe-f9ad-44e6-acfd-ff876fe3b5fb",
+      "name": "Save BA review manifest to GitHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "CONFIGURE - GitHub REST API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/Vine521992/AI_BSA_Workflow_Builder3/contents/config/brand/brand_guidelines.md?ref=main",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.raw"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "8a80f44b-304a-41c6-977f-0163a119c1ad",
+      "name": "Load brand guidelines",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        -240
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "CONFIGURE - GitHub REST API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/Vine521992/AI_BSA_Workflow_Builder3/contents/config/voice/writing_voice.md?ref=main",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.raw"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "e14e2044-6039-4d04-aa83-3ed503a7140c",
+      "name": "Load writing voice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        -240
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "CONFIGURE - GitHub REST API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/Vine521992/AI_BSA_Workflow_Builder3/contents/config/standards/BA_documentation_standards.md?ref=main",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.raw"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "d8f87005-a745-4ab7-977a-ef4e0b9f1d56",
+      "name": "Load BA standards",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        -240
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "CONFIGURE - GitHub REST API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/Vine521992/AI_BSA_Workflow_Builder3/contents/config/brand/brand_tokens.json?ref=main",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.raw"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "855cccc5-1647-4ea7-b5f6-6d91ae92f385",
+      "name": "Load brand tokens",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        -240
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "CONFIGURE - GitHub REST API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/Vine521992/AI_BSA_Workflow_Builder3/contents/{{ $('Filter BRD image and PDF files').item.json.projectKey === 'UNIVERSAL' ? 'projects/UNIVERSAL/project_config.json' : 'projects/' + $('Filter BRD image and PDF files').item.json.projectKey + '/project_config.json' }}?ref=main",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.raw"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "24a645b7-9b06-4b33-a72b-7a7eaf1ebadd",
+      "name": "Load project configuration",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        -240
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "CONFIGURE - GitHub REST API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/Vine521992/AI_BSA_Workflow_Builder3/contents/templates/FSD_Template.html?ref=main",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.raw"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "f22e602d-98e4-48c0-b9bd-61cd3b80138a",
+      "name": "Load FSD HTML template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        -240
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "CONFIGURE - GitHub REST API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const src=$(\"Filter BRD image and PDF files\").item.json;\nconst brand=$(\"Load brand guidelines\").item.json.data ?? \"\";\nconst voice=$(\"Load writing voice\").item.json.data ?? \"\";\nconst standards=$(\"Load BA standards\").item.json.data ?? \"\";\nconst tokensRaw=$(\"Load brand tokens\").item.json.data;\nconst projectRaw=$(\"Load project configuration\").item.json.data;\nconst template=$(\"Load FSD HTML template\").item.json.data ?? \"\";\nconst tokens=typeof tokensRaw === \"string\" ? JSON.parse(tokensRaw) : tokensRaw;\nconst project=typeof projectRaw === \"string\" ? JSON.parse(projectRaw) : projectRaw;\nreturn [{json:{...src,universalBrand:brand+\"\\nBrand tokens: \"+JSON.stringify(tokens),voice,standards,projectConfig:JSON.stringify(project),template},binary:$(\"Download source from GitHub\").item.binary}];"
+      },
+      "id": "2f120159-6250-4a76-87d0-c2fed0e94114",
+      "name": "Assemble project guidance and source binary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -240
+      ]
+    }
+  ],
+  "connections": {
+    "GitHub Push Trigger": {
+      "main": [
+        [
+          {
+            "node": "Filter BRD image and PDF files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter BRD image and PDF files": {
+      "main": [
+        [
+          {
+            "node": "Download source from GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download source from GitHub": {
+      "main": [
+        [
+          {
+            "node": "Load brand guidelines",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load brand guidelines": {
+      "main": [
+        [
+          {
+            "node": "Load writing voice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load writing voice": {
+      "main": [
+        [
+          {
+            "node": "Load BA standards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load BA standards": {
+      "main": [
+        [
+          {
+            "node": "Load brand tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load brand tokens": {
+      "main": [
+        [
+          {
+            "node": "Load project configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load project configuration": {
+      "main": [
+        [
+          {
+            "node": "Load FSD HTML template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load FSD HTML template": {
+      "main": [
+        [
+          {
+            "node": "Assemble project guidance and source binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble project guidance and source binary": {
+      "main": [
+        [
+          {
+            "node": "Upload source to OpenAI Files API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload source to OpenAI Files API": {
+      "main": [
+        [
+          {
+            "node": "Build Responses API request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Responses API request": {
+      "main": [
+        [
+          {
+            "node": "Analyse BRD with OpenAI Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyse BRD with OpenAI Vision": {
+      "main": [
+        [
+          {
+            "node": "Extract generated FSD HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract generated FSD HTML": {
+      "main": [
+        [
+          {
+            "node": "Convert FSD HTML to draft PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert FSD HTML to draft PDF": {
+      "main": [
+        [
+          {
+            "node": "Download draft PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download draft PDF": {
+      "main": [
+        [
+          {
+            "node": "Prepare draft PDF and review manifest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare draft PDF and review manifest": {
+      "main": [
+        [
+          {
+            "node": "Save draft PDF to GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save draft PDF to GitHub": {
+      "main": [
+        [
+          {
+            "node": "Save BA review manifest to GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "7dae8327-f3ae-47f2-8f00-48e1225b28f6",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

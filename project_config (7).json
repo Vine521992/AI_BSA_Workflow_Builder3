@@ -1,0 +1,15 @@
+{
+  "project_key": "EISAI",
+  "project_name": "Eisai",
+  "enabled": true,
+  "branding_mode": "inherit_universal",
+  "terminology": [
+    "Use only project-approved pharmaceutical and clinical terminology."
+  ],
+  "additional_fsd_sections": [
+    "Pharma data and promotional-channel considerations, only when specified in the BRD"
+  ],
+  "mandatory_rules": [
+    "Do not infer clinical, regulatory, patient or HCP targeting requirements without explicit source evidence."
+  ]
+}

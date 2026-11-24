@@ -1,0 +1,12 @@
+{
+  "project_key": "UNIVERSAL",
+  "project_name": "Universal / Unspecified Project",
+  "enabled": true,
+  "branding_mode": "inherit_universal",
+  "terminology": [],
+  "additional_fsd_sections": [],
+  "mandatory_rules": [
+    "Apply universal internal BA standards.",
+    "Do not apply client branding unless explicitly configured in an approved project override."
+  ]
+}
